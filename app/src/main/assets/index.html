@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نوم هادئ</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1a35;--card:#162a52;--on:#f2b66b;--tx:#e8eefc;--mut:#8fa3cc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);color-scheme:dark}
+*{box-sizing:inherit}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:Tajawal,system-ui,sans-serif}
+body{padding:16px 14px 210px;min-height:100vh}
+h1{font-size:24px;margin:8px 4px 2px}
+p.s{margin:0 4px 16px;color:var(--mut);font-size:14px}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.c{background:var(--card);border-radius:16px;padding:4px 6px 10px;display:flex;flex-direction:column;align-items:center;min-height:118px;min-width:0}
+.c .tg{background:none;border:0;color:inherit;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 2px;width:100%;flex:1;text-align:center}
+.c .i{font-size:30px;line-height:1}
+.c .n{font-size:14px;line-height:1.25}
+.c.on{background:var(--on);color:#1b1405}
+.c input{width:88%;accent-color:#1b1405;visibility:hidden;margin:0}
+.c.on input{visibility:visible}
+.c .tg:focus-visible,.t button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#0a1329;border-top:1px solid #243a6b;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px))}
+.t{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.t button{flex:1;background:var(--card);color:var(--tx);border:0;border-radius:12px;padding:10px 0;font:inherit;cursor:pointer}
+.t button.on{background:var(--on);color:#1b1405}
+.r{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#left{color:var(--mut);font-size:14px;min-width:70px}
+#stop{background:#3a2230;color:#ffd6dc;border:0;border-radius:12px;padding:10px 16px;font:inherit;cursor:pointer}
+input#vol{flex:1;accent-color:var(--on)}
+</style>
+</head>
+<body>
+<h1>نوم هادئ</h1>
+<p class="s">اختر صوتاً أو اخلط عدة أصوات. اضبط مستوى كل صوت بشكل منفصل.</p>
+<div class="g" id="g"></div>
+<div class="bar">
+  <div class="r"><span>الصوت العام</span><input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"><button id="stop">إيقاف الكل</button></div>
+  <div class="t" id="t"></div>
+  <div class="r" style="margin-top:6px"><span id="left">بدون مؤقت</span><span style="color:var(--mut);font-size:12px">يخفت الصوت تدريجياً قبل الإيقاف</span></div>
+</div>
+<script>
+let AC,master,B={};
+function init(){
+  if(AC){if(AC.state==='suspended')AC.resume();bg.play().catch(()=>{});return}
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain();master.gain.value=+vol.value;
+  const dest=AC.createMediaStreamDestination();master.connect(dest);
+  bg.srcObject=dest.stream;bg.play().catch(()=>{});
+  for(const t of['white','pink','brown'])B[t]=mk(t);
+  if('mediaSession' in navigator){
+    navigator.mediaSession.metadata=new MediaMetadata({title:'نوم هادئ',artist:'أصوات النوم'});
+    navigator.mediaSession.setActionHandler('pause',()=>stopAll());
+    navigator.mediaSession.setActionHandler('stop',()=>stopAll());
+  }
+}
+const bg=document.createElement('audio');bg.setAttribute('playsinline','');document.body.appendChild(bg);
+document.addEventListener('visibilitychange',()=>{if(AC&&AC.state==='suspended'&&Object.keys(act).length)AC.resume()});
+function mk(type){
+  const n=AC.sampleRate*6,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);
+  let l=0,b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<n;i++){const w=Math.random()*2-1;
+    if(type==='white')d[i]=w*.5;
+    else if(type==='brown'){l=(l+.02*w)/1.02;d[i]=l*3.5}
+    else{b0=.99886*b0+w*.0555179;b1=.99332*b1+w*.0750759;b2=.969*b2+w*.153852;b3=.8665*b3+w*.3104856;b4=.55*b4+w*.5329522;b5=-.7616*b5-w*.016898;d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11;b6=w*.115926}
+  }
+  return b;
+}
+function noise(type,fl,out){
+  const s=AC.createBufferSource();s.buffer=B[type];s.loop=true;let n=s;
+  for(const f of fl){const x=AC.createBiquadFilter();x.type=f[0];x.frequency.value=f[1];if(f[2])x.Q.value=f[2];n.connect(x);n=x}
+  n.connect(out);s.start();return s;
+}
+function tone(f,v,out,type){const o=AC.createOscillator(),g=AC.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(out);o.start();return o}
+function lfo(p,f,depth){const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=f;g.gain.value=depth;o.connect(g);g.connect(p);o.start();return o}
+function modOut(out,base,f,depth){const g=AC.createGain();g.gain.value=base;lfo(g.gain,f,depth);g.connect(out);return g}
+function beat(out,v,period){
+  const sr=AC.sampleRate,n=Math.round(sr*period/1000),b=AC.createBuffer(1,n,sr),d=b.getChannelData(0);
+  const th=(t0,a)=>{for(let i=0;i<sr*.25;i++){const t=i/sr,k=Math.round(t0*sr)+i;if(k<n)d[k]+=a*Math.sin(6.2832*60*t)*Math.exp(-t*18)*Math.min(1,t/.02)}};
+  th(.05,v);th(.33,v*.65);
+  const s=AC.createBufferSource();s.buffer=b;s.loop=true;s.connect(out);s.start();return[s];
+}
+const S=[
+ {id:'white',n:'ضوضاء بيضاء',i:'⚪',f:o=>[noise('white',[],o)]},
+ {id:'pink',n:'ضوضاء وردية',i:'🩷',f:o=>[noise('pink',[],o)]},
+ {id:'brown',n:'ضوضاء بنية',i:'🟤',f:o=>[noise('brown',[],o)]},
+ {id:'dryer',n:'مجفف الشعر',i:'💨',f:o=>[noise('white',[['bandpass',2300,.6]],o),tone(115,.15,o)]},
+ {id:'car',n:'سيارة',i:'🚗',f:o=>[noise('brown',[['lowpass',420]],o),tone(50,.35,o,'triangle')]},
+ {id:'vac',n:'مكنسة كهربائية',i:'🧹',f:o=>[noise('white',[['bandpass',950,.5]],o),tone(120,.2,o)]},
+ {id:'fan',n:'مروحة',i:'🌀',f:o=>[noise('pink',[['lowpass',900]],modOut(o,.9,5,.08))]},
+ {id:'rain',n:'مطر',i:'🌧️',f:o=>[noise('white',[['highpass',1500],['lowpass',7000]],o)]},
+ {id:'wave',n:'أمواج',i:'🌊',f:o=>[noise('brown',[['lowpass',1000]],modOut(o,.55,.12,.45))]},
+ {id:'wind',n:'رياح',i:'🍃',f:o=>[noise('pink',[['bandpass',500,.8]],modOut(o,.6,.2,.4))]},
+ {id:'purr',n:'قطة تخرخر',i:'🐱',f:o=>[noise('brown',[['lowpass',260]],modOut(o,.6,25,.5))]},
+ {id:'shh',n:'شششش من الأم',i:'🤫',f:o=>[noise('white',[['bandpass',4000,.8]],modOut(o,.5,.7,.5))]},
+ {id:'heart',n:'نبض القلب',i:'💓',f:o=>beat(o,1,1000)},
+ {id:'womb',n:'داخل الرحم',i:'🤰',f:o=>[noise('brown',[['lowpass',350]],o),...beat(o,.35,1700)]}
+];
+const act={};
+const g=document.getElementById('g');
+S.forEach(s=>{
+  const c=document.createElement('div');c.className='c';
+  const b=document.createElement('button');b.className='tg';
+  b.innerHTML='<span class="i">'+s.i+'</span><span class="n">'+s.n+'</span>';
+  const r=document.createElement('input');r.type='range';r.min=0;r.max=1;r.step=.01;r.value=.6;
+  r.setAttribute('aria-label','مستوى '+s.n);
+  b.onclick=()=>toggle(s);
+  c.append(b,r);g.appendChild(c);s.el=c;s.r=r;
+});
+function toggle(s){
+  init();
+  if(act[s.id]){stopOne(s);return}
+  const gn=AC.createGain();gn.gain.value=+s.r.value;gn.connect(master);
+  act[s.id]={gn,nodes:s.f(gn)};
+  s.el.classList.add('on');
+  s.r.oninput=()=>{gn.gain.value=+s.r.value};
+}
+function stopOne(s){
+  const a=act[s.id];if(!a)return;
+  a.nodes.forEach(n=>{try{n.stop()}catch(e){}});a.gn.disconnect();delete act[s.id];
+  s.el.classList.remove('on');s.r.oninput=null;
+}
+function stopAll(){S.forEach(stopOne);if(master)master.gain.cancelScheduledValues(0),master.gain.value=+vol.value;clearTimer()}
+document.getElementById('stop').onclick=stopAll;
+const vol=document.getElementById('vol');
+vol.oninput=()=>{if(master)master.gain.value=+vol.value};
+let tm,tick,endAt=0;
+const left=document.getElementById('left');
+function clearTimer(){clearTimeout(tm);clearInterval(tick);endAt=0;left.textContent='بدون مؤقت';[...tbox.children].forEach((c,i)=>c.classList.toggle('on',i===0))}
+const tbox=document.getElementById('t');
+[[0,'بدون'],[15,'١٥ د'],[30,'٣٠ د'],[60,'ساعة'],[120,'ساعتان']].forEach(([m,l],i)=>{
+  const b=document.createElement('button');b.textContent=l;if(i===0)b.className='on';
+  b.onclick=()=>{
+    clearTimeout(tm);clearInterval(tick);
+    [...tbox.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');
+    if(!m){left.textContent='بدون مؤقت';return}
+    init();endAt=Date.now()+m*60000;
+    tm=setTimeout(fadeOut,Math.max(0,m*60000-30000));
+    tick=setInterval(()=>{const s=Math.max(0,Math.round((endAt-Date.now())/1000));left.textContent='يتبقى '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')},1000);
+    left.textContent='يتبقى '+m+':00';
+  };
+  tbox.appendChild(b);
+});
+function fadeOut(){
+  if(!master)return;
+  const t=AC.currentTime;master.gain.setValueAtTime(master.gain.value,t);master.gain.linearRampToValueAtTime(0,t+30);
+  setTimeout(stopAll,30500);
+}
+</script>
+</body>
+</html>
